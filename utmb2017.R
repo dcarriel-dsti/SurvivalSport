@@ -26,6 +26,13 @@ data_utmb17 <-data_utmb17 |>
     status = case_when(time != 'NA' ~ 1, TRUE ~ 0),
     .after ="category")
 
+#Keep the highest time of the checkpoints and create a new column HighestTime
+start_row <- 11
+end_row <- 34
+data_utmb17$HighestTime <- apply(data_utmb17[start_row:end_row], 1, function(x) max(x, na.rm = TRUE))
+
+View(data_utmb17)
+
 
 #remove intermediate checkpoints time
 data_utmb17<-  data_utmb17[,-11:-34]
