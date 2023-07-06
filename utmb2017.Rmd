@@ -177,9 +177,13 @@ legend("bottomleft",lty = 1, col = 1:9, legend = names(fit.KMage_gender$strata),
 diff.KMage_gender1 <- survdiff(Surv(timetoevent, status) ~ gender + age_range, data = data_utmb17)
 diff.KMage_gender1
 
+```
+```{r}
 diff.KMage_gender2 <- survdiff(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
 diff.KMage_gender2
 ```
+
+
 
 ```{r}
 ## semi-parametric Cox regression
