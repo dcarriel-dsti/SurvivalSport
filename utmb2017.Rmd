@@ -1,0 +1,177 @@
+```{r}
+library(tidyverse)
+library(broom)
+library(dplyr)
+library(survival)
+library(lubridate)
+```
+
+
+
+```{r}
+# Data preparation
+setwd ('C:/Users/romai/Documents/DSTI/21-Survival Analysis/UTMB')
+
+data_utmb17 <- read_csv("utmb_2017.csv", col_names = TRUE)
+
+problems(data_utmb17)
+colnames(data_utmb17)
+str(data_utmb17)
+```
+
+```{r}
+data_utmb17_v1 <- data_utmb17[,-1] #delete 1st column 
+
+```
+
+
+
+```{r}
+#create a column gender & age from category + status (1 = finisher; 0 = DNF / not finisher)
+data_utmb17_v2 <-data_utmb17_v1 |>
+  mutate(gender = case_when(
+    endsWith(category, " H") ~ "Male",
+    endsWith(category, " F") ~ "Female"),
+    age = substring(data_utmb17_v1$category, first=1, last=2), #create a column age from category
+    status = case_when(time != 'NA' ~ 1, TRUE ~ 0),
+    .after ="category")
+```
+
+
+```{r}
+(data_utmb17_v2[2535,34])
+```
+
+```{r}
+maxtime<-function(x) {
+    maxt<-max(which(x !=0)) 
+    return(maxt)
+    }
+data_utmb17_v2$timetoevent %>% mutate(across(data_utmb17_v2[11:35], maxtime))
+
+```
+
+```{r}
+data_utmb17_v2$timetoeven<-pmax(data_utmb17_v2[11:35])
+view(data_utmb17_v2)
+```
+
+
+
+
+
+```{r}
+#Keep the highest time of the checkpoints and create a new column HighestTime
+#start_row <- 11
+#end_row <- 35
+data_utmb17_v2$timetoevent <- apply(data_utmb17_v2[11:35], 1, function(x) x[max(which(x !=0))])
+class(data_utmb17_v2$timetoevent)
+summary(data_utmb17_v2$timetoevent)
+```
+```{r}
+(data_utmb17_v2[2535,34:36])
+```
+
+
+
+```{r}
+colnames(data_utmb17_v2)
+
+```
+```{r}
+data_utmb_loop<-data_utmb17_v2
+
+for (i in 1:nrow(data_utmb_loop))
+  {for (j in 35:11)
+    {if (data_utmb_loop[i,j]== '')
+        {break}
+        {data_utmb_loop$timetoevent <- data_utmb_loop[i,j]}
+    }
+  }
+  ```
+
+```{r}
+#remove intermediate checkpoints time
+data_utmb17_v3<-  data_utmb17_v2[,-11:-34]
+colnames(data_utmb17_v3)
+```
+
+```{r}
+#keep useful columns: bib (or ID), gender, age, status, nationality and time
+data_utmb17_v4<-  data_utmb17_v3[,-c(2,3,4,8,10,11)]
+
+#View(data_utmb17)
+
+```
+
+Conversion of age category (SE, V1, V2, V3, V4) in age range (in years)
+```{r}
+age_range <- tibble('age' =
+    c("V1", "V2","V3", "V4", "SE"),
+  'age_range' = c("40-49", "50-59", "60-69", "over 70", "23-39")
+  )
+```
+
+```{r}
+data_utmb17_v5 <-
+  data_utmb17_v4 |>
+  inner_join(
+    age_range,
+    by = "age")
+
+data_utmb17_v6 <- data_utmb17_v5  %>% relocate("age_range", .after = "age")
+  
+table(data_utmb17_v5$age_range)
+```
+```{r}
+view(data_utmb17_v6)
+```
+
+
+
+```{r}
+class(data_utmb17_v7$timetoevent) # to convert in a more accurate format?
+
+library(hms)
+w <- strptime(data_utmb17_v7$timetoevent, "%H:%M:%S")
+y<-as.POSIXct(strptime(data_utmb17_v7$timetoevent, "%H:%M:%S"), format = "%H:%M:%S")
+view (y)
+#y.hms<-hms(w)
+```
+
+```{r}
+data_utmb17_v7 <-data_utmb17_v6 |>
+  mutate(timetoevent = replace_na(timetoevent, '0'))
+
+```
+
+
+``
+```{r}
+view(data_utmb17_v7)
+```
+
+
+
+
+
+
+
+
+```{r}
+
+#Kaplan-Meier
+fit.KM <- survfit(Surv(Arrivée, status) ~ age, data = data_utmb17)
+summary(fit.KM)
+fit.KM
+```
+
+
+
+
+
+
+plot(fit.KM, mark.time = TRUE,
+     main = "Kaplan-Meier estimator",
+     ylab = "Survival probability",
+     xlab = "time (seconds)")
