@@ -7,7 +7,6 @@ library(broom)
 library(dplyr)
 library(survival)
 library(lubridate)
-library(RColorBrewer)
 
 # Data preparation
 setwd ('C:/Users/romai/Documents/DSTI/21-Survival Analysis/UTMB')
@@ -47,7 +46,7 @@ colnames(data_utmb17)
 
 
 #keep useful columns: bib (or ID), gender, age, status, nationality and time
-data_utmb17<-  data_utmb17[,-c(2,3,4,8,10)]
+data_utmb17<-  data_utmb17[,-c(2,3,4,8,9,10)]
 
 
 #Conversion of age category (SE, V1, V2, V3, V4) in age range (in years)
