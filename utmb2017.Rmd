@@ -6,8 +6,6 @@ library(survival)
 library(lubridate)
 ```
 
-
-
 ```{r}
 # Data preparation
 setwd ('C:/Users/romai/Documents/DSTI/21-Survival Analysis/UTMB')
@@ -20,158 +18,172 @@ str(data_utmb17)
 ```
 
 ```{r}
-data_utmb17_v1 <- data_utmb17[,-1] #delete 1st column 
-
+#delete 1st column (useless)
+data_utmb17 <- data_utmb17[,-1] 
 ```
-
-
 
 ```{r}
 #create a column gender & age from category + status (1 = finisher; 0 = DNF / not finisher)
-data_utmb17_v2 <-data_utmb17_v1 |>
+data_utmb17 <-data_utmb17 |>
   mutate(gender = case_when(
     endsWith(category, " H") ~ "Male",
     endsWith(category, " F") ~ "Female"),
-    age = substring(data_utmb17_v1$category, first=1, last=2), #create a column age from category
+    age = substring(data_utmb17$category, first=1, last=2),
     status = case_when(time != 'NA' ~ 1, TRUE ~ 0),
     .after ="category")
 ```
 
-
+Keep the highest time of the checkpoints or arrival creating a new column "HighestTime" in order to assign a time to event whatever the status
 ```{r}
-(data_utmb17_v2[2535,34])
+data_utmb17$highesttime <- apply(data_utmb17[11:35], 1, function(x) max(x, na.rm = TRUE))
+data_utmb17<-data_utmb17|>
+  mutate(highesttime = replace_na(highesttime, '00:00:00'))
 ```
-
+Format of the newly-created column "highesttime" is character preventing to apply survival analysis. Therefore, we convert it in time format (expressed in seconds) creating a the final time column "timetoevent'
 ```{r}
-maxtime<-function(x) {
-    maxt<-max(which(x !=0)) 
-    return(maxt)
-    }
-data_utmb17_v2$timetoevent %>% mutate(across(data_utmb17_v2[11:35], maxtime))
-
-```
-
-```{r}
-data_utmb17_v2$timetoeven<-pmax(data_utmb17_v2[11:35])
-view(data_utmb17_v2)
-```
-
-
-
-
-
-```{r}
-#Keep the highest time of the checkpoints and create a new column HighestTime
-#start_row <- 11
-#end_row <- 35
-data_utmb17_v2$timetoevent <- apply(data_utmb17_v2[11:35], 1, function(x) x[max(which(x !=0))])
-class(data_utmb17_v2$timetoevent)
-summary(data_utmb17_v2$timetoevent)
-```
-```{r}
-(data_utmb17_v2[2535,34:36])
-```
-
-
-
-```{r}
-colnames(data_utmb17_v2)
-
-```
-```{r}
-data_utmb_loop<-data_utmb17_v2
-
-for (i in 1:nrow(data_utmb_loop))
-  {for (j in 35:11)
-    {if (data_utmb_loop[i,j]== '')
-        {break}
-        {data_utmb_loop$timetoevent <- data_utmb_loop[i,j]}
-    }
-  }
-  ```
-
-```{r}
-#remove intermediate checkpoints time
-data_utmb17_v3<-  data_utmb17_v2[,-11:-34]
-colnames(data_utmb17_v3)
-```
-
-```{r}
-#keep useful columns: bib (or ID), gender, age, status, nationality and time
-data_utmb17_v4<-  data_utmb17_v3[,-c(2,3,4,8,10,11)]
-
-#View(data_utmb17)
+data_utmb17$timetoevent<- lubridate::hms(data_utmb17$highesttime)
+data_utmb17$timetoevent<- period_to_seconds(data_utmb17$timetoevent)
 
 ```
 
-Conversion of age category (SE, V1, V2, V3, V4) in age range (in years)
+Removal of intermediate checkpoints time
+```{r}
+data_utmb17<- data_utmb17[,-11:-34]
+colnames(data_utmb17)
+```
+We keep only useful columns: bib (or ID), gender, age, status and time
+NB: nationality will be removed because we don't have the information for all censored individuals
+```{r}
+data_utmb17<-  data_utmb17[,-c(2,3,4,8,9,10)]
+```
+
+
+Conversion of age category (SE, V1, V2, V3, V4) in age range (in years) using the international age ranking for running trail
 ```{r}
 age_range <- tibble('age' =
-    c("V1", "V2","V3", "V4", "SE"),
-  'age_range' = c("40-49", "50-59", "60-69", "over 70", "23-39")
-  )
+                      c("V1", "V2","V3", "V4", "SE"),
+                    'age_range' = c("40-49", "50-59", "60-69", "70+", "23-39")
+                    )
+data_utmb17 <- data_utmb17 |> inner_join(age_range,by = "age")
+
+#Move column "age_range" just after column "age"
+data_utmb17 <- data_utmb17  %>% relocate("age_range", .after = "age")
 ```
 
 ```{r}
-data_utmb17_v5 <-
-  data_utmb17_v4 |>
-  inner_join(
-    age_range,
-    by = "age")
-
-data_utmb17_v6 <- data_utmb17_v5  %>% relocate("age_range", .after = "age")
-  
-table(data_utmb17_v5$age_range)
+table(data_utmb17$age_range)
 ```
-```{r}
-view(data_utmb17_v6)
-```
-
-
+Oldest category contains very few individuals (only 5 with age over 70). We could merge the 2 oldest range together.
 
 ```{r}
-class(data_utmb17_v7$timetoevent) # to convert in a more accurate format?
-
-library(hms)
-w <- strptime(data_utmb17_v7$timetoevent, "%H:%M:%S")
-y<-as.POSIXct(strptime(data_utmb17_v7$timetoevent, "%H:%M:%S"), format = "%H:%M:%S")
-view (y)
-#y.hms<-hms(w)
+data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "60-69"]<- "60+"
+data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "70+"]<- "60+"
 ```
 
 ```{r}
-data_utmb17_v7 <-data_utmb17_v6 |>
-  mutate(timetoevent = replace_na(timetoevent, '0'))
-
+table(data_utmb17$age_range)
+```
+We still see that oldest groups (50-59 and 60+) contains few individuals so we decide to regroup them to have more homogeneous groups
+```{r}
+data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "50-59"] <- "50+"
+data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "60+"]<- "50+"
+table(data_utmb17$age_range)
 ```
 
-
-``
+SURVIVAL ANALYSIS
+Global analysis
 ```{r}
-view(data_utmb17_v7)
-```
-
-
-
-
-
-
-
-
-```{r}
-
 #Kaplan-Meier
-fit.KM <- survfit(Surv(Arrivée, status) ~ age, data = data_utmb17)
+fit.KM <- survfit(Surv(timetoevent, status) ~ 1, data = data_utmb17)
 summary(fit.KM)
 fit.KM
-```
-
-
-
-
-
 
 plot(fit.KM, mark.time = TRUE,
      main = "Kaplan-Meier estimator",
      ylab = "Survival probability",
      xlab = "time (seconds)")
+
+```
+
+AGE
+## Kaplan-Meier
+```{r}
+
+fit.KMage <- survfit(Surv(timetoevent, status) ~ age_range, data = data_utmb17)
+fit.KMage
+
+plot(fit.KMage, col = 3:8)
+legend("bottomleft", lty = 1, col = 3:8, legend = names(fit.KMage$strata))
+```
+
+Log rank test
+The logrank test (Peto et al, 1977) is the most widely used method of comparing two or more survival curves
+
+```{r}
+diff.KMage <- survdiff(Surv(timetoevent, status) ~ age_range, data = data_utmb17)
+diff.KMage
+
+```
+p-value = 7e-12  (<<0.05), we reject H0 => there exists at least a significant difference between 2 age range reinforcing the visual impression of a trend towards better survival (chance to finish the race) when the age is less advanced.
+
+------------------------------------------------
+## semi-parametric Cox regression
+```{r}
+cox.age<- coxph(Surv(timetoevent, status) ~ age_range, data = data_utmb17)
+summary(cox.age)
+```
+The reference group is the youngest group (23-39). The Cox regression shows that the 2 other age group are statistically significant compared to the reference (p<<0.05)
+
+---------------
+GENDER
+```{r}
+## Kaplan-Meier
+fit.KMgender <- survfit(Surv(timetoevent, status) ~ gender, data = data_utmb17)
+fit.KMgender
+
+plot(fit.KMgender, col = c("#FF3399", "#0066FF"),pch = 19)
+legend("bottomleft", lty = 1, col = c("#FF3399", "#0066FF"), cex= 0.75, legend = names(fit.KMgender$strata))
+
+
+```
+
+```{r}
+##log rank test by gender
+diff.KMgender <- survdiff(Surv(timetoevent, status) ~ gender, data = data_utmb17)
+diff.KMgender
+##The p-value is large (p=0.1): the difference *is not* statistically significant.
+```
+
+```{r}
+## semi-parametric Cox regression
+cox.gender<- coxph(Surv(timetoevent, status) ~ gender, data = data_utmb17)
+summary(cox.gender)
+```
+
+
+AGE AND GENDER
+```{r}
+## Kaplan-Meier
+fit.KMage_gender <- survfit(Surv(timetoevent, status) ~ age_range + strata(gender), data = data_utmb17)
+fit.KMage_gender
+
+plot(fit.KMage_gender, col = 1:9)
+legend("bottomleft",lty = 1, col = 1:9, legend = names(fit.KMage_gender$strata), cex= 0.6, box.lty=1)
+```
+
+
+```{r}
+##log rank test by gender
+diff.KMage_gender1 <- survdiff(Surv(timetoevent, status) ~ gender + age_range, data = data_utmb17)
+diff.KMage_gender1
+
+diff.KMage_gender2 <- survdiff(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
+diff.KMage_gender2
+```
+
+```{r}
+## semi-parametric Cox regression
+cox.age_gender<- coxph(Surv(timetoevent, status) ~ gender + age_range, data = data_utmb17)
+summary(cox.age_gender)
+```
+
