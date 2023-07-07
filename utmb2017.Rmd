@@ -2,7 +2,8 @@
 title: "Survival analysis project"
 author: "DC, RD, RL, RR"
 date: "2023-07-07"
-output: html_document
+output:
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -10,38 +11,38 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # 1/ENVIRONMENT PREPARATION
-
 First, let's install the libraries that will be required in our analysis
 
 ```{r}
 library(tidyverse)
-#library(broom)
 library(dplyr)
 library(survival)
 library(lubridate)
 ```
---------------------------------------------------------------------
-# 2/DATA PREPARATION
 
+# 2/DATA PREPARATION
 First, we need to specify the path where the dataset is located. You need to amend in with your own path
 ```{r}
 setwd ('C:/Users/romai/Documents/DSTI/21-Survival Analysis/UTMB')
 data_utmb17 <- read_csv("utmb_2017.csv", col_names = TRUE)
 head(data_utmb17)
 ```
+
+
 Let's check if we get some problems during the data import
 ```{r}
 problems(data_utmb17)
 ```
 
---------
-Let's have a quick look on the dataset</br> 
-*What are the columns?
+
+Let's have a quick look on the dataset.
+What are the columns?
 
 ```{r}
 colnames(data_utmb17)
 ```
-*Let's get a bit more details on columns (type, etc)
+
+Let's get a bit more details on columns (type, etc)
 ```{r}
 str(data_utmb17)
 ```
@@ -50,7 +51,6 @@ First column seems useless (it looks like a row numbering)
 ```{r}
 data_utmb17 <- data_utmb17[,-1] 
 ```
-
 
 We can see that column (category) contains 2 interesting information: age category and gender. Therefore, we can create 2 new columns for gender & age 
 In addition, we add a column "status" (1 = finisher; 0 = DNF / did not finish) based on the presence or not of a time in the column "Arrivée"
@@ -65,22 +65,23 @@ data_utmb17 <-data_utmb17 |>
     .after ="category")
 ```
 
-We can observe that there is no column capturing the latest/highest time for all individuals. Column "Arrivée" (Arrival  <=> finish line) capture only finisher (status =1). Non-finisher individuals (status = 0) have only the last time corresponding to the time where they stop the race.</br>
-Therefore, we create a new column a new column "HighestTime" to capture the information about the time-to-event regardless the status.</br>
+We can observe that there is no column capturing the latest/highest time for all individuals. Column "Arrivée" (Arrival  <=> finish line) capture only finisher (status =1). Non-finisher individuals (status = 0) have only the last time corresponding to the time where they stop the race.
+Therefore, we create a new column a new column "HighestTime" to capture the information about the time-to-event regardless the status.
 ```{r}
 data_utmb17$highesttime <- apply(data_utmb17[11:35], 1, function(x) max(x, na.rm = TRUE))
 data_utmb17<-data_utmb17|>
   mutate(highesttime = replace_na(highesttime, '00:00:00'))
 ```
+
 Format of the newly-created column "highesttime" is character preventing to apply survival analysis. 
 ```{r}
 str(data_utmb17$highesttime)
 ```
+
 Therefore, we convert it in time format (expressed in seconds) creating a the final time column "timetoevent'
 ```{r}
 data_utmb17$timetoevent<- lubridate::hms(data_utmb17$highesttime)
 data_utmb17$timetoevent<- period_to_seconds(data_utmb17$timetoevent)
-
 ```
 
 Then, we remove all intermediate checkpoints time that are not useful anymore for our analysis
@@ -88,14 +89,15 @@ Then, we remove all intermediate checkpoints time that are not useful anymore fo
 data_utmb17<- data_utmb17[,-11:-34]
 colnames(data_utmb17)
 ```
-We keep removing others useless columns</br>
-  * name</br>
-  * team : only few individuals show that the information</br>
-  * category : we split it in 2 new columns (gender and age)</br>
-  * nationality: removed because we don't have the information for all censored individuals</br>
-  * Arrivée (arrival): we capture it in the timetoevent column</br>
-  * highestime: not the appropriate format -> convert in time format (seconds) above</br>
-</br>
+
+We keep removing others useless columns
+  * name
+  * team : only few individuals show that the information
+  * category : we split it in 2 new columns (gender and age)
+  * nationality: removed because we don't have the information for all censored individuals
+  * Arrivée (arrival): we capture it in the timetoevent column
+  * highestime: not the appropriate format -> convert in time format (seconds) above
+
 We keep only useful columns: bib (or ID), gender, age, status and timetoevent
 
 ```{r}
@@ -118,34 +120,29 @@ data_utmb17 <- data_utmb17  %>% relocate("age_range", .after = "age")
 ```{r}
 table(data_utmb17$age_range)
 ```
-The oldest category contains very few individuals (only 5 with age over 70). We could merge the 2 oldest range together.
+The 3 oldest categories contains few individuals compared to the 2 others. We could merge the 3 oldest range together.
 
 ```{r}
-data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "60-69"]<- "60+"
-data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "70+"]<- "60+"
-```
-
-```{r}
-table(data_utmb17$age_range)
-```
-We still see that oldest groups (50-59 and 60+) contains few individuals so we decide to regroup them to have more homogeneous groups
-```{r}
+data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "60-69"]<- "50+"
+data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "70+"]<- "50+"
 data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "50-59"] <- "50+"
-data_utmb17 ["age_range"] [data_utmb17 ["age_range"] == "60+"]<- "50+"
+```
+
+```{r}
 table(data_utmb17$age_range)
 ```
 ```{r}
 table(data_utmb17$age_range, data_utmb17$gender)
 ```
 
-# 3/SURVIVAL ANALYSIS</br>
-## a/Global analysis</br>
-### Kaplan-Meier</br>
+# 3/SURVIVAL ANALYSIS
+## a/Global analysis
+### Kaplan-Meier
 ```{r}
 
 fit.KM <- survfit(Surv(timetoevent, status) ~ 1, data = data_utmb17)
-summary(fit.KM)
 fit.KM
+
 
 plot(fit.KM, mark.time = TRUE,
      main = "Kaplan-Meier estimator",
@@ -154,18 +151,18 @@ plot(fit.KM, mark.time = TRUE,
 
 ```
 
-## b/ Group by AGE </br>
-### Kaplan-Meier</br>
+## b/ Group by AGE
+### Kaplan-Meier
 ```{r}
 
 fit.KMage <- survfit(Surv(timetoevent, status) ~ age_range, data = data_utmb17)
 fit.KMage
 
-plot(fit.KMage, col = 3:8)
-legend("bottomleft", lty = 1, col = 3:8, legend = names(fit.KMage$strata))
+plot(fit.KMage, col = 13:16)
+legend("bottomleft", lty = 1, col = 13:16, legend = names(fit.KMage$strata))
 ```
 
-### Log rank test</br>
+### Log rank test
 The logrank test is the most widely used method of comparing two or more survival curves
 
 ```{r}
@@ -175,17 +172,18 @@ diff.KMage
 ```
 p-value = 7e-12  (<<0.05), we reject H0 => there exists at least a significant difference between 2 age range reinforcing the visual impression of a trend towards better survival (chance to finish the race) when the age is less advanced.
 
-------------------------------------------------
-### Semi-parametric Cox regression</br>
+
+### Semi-parametric Cox regression
 ```{r}
 cox.age<- coxph(Surv(timetoevent, status) ~ age_range, data = data_utmb17)
 summary(cox.age)
 ```
-The reference group is the youngest group (23-39). The Cox regression shows that the 2 other age group are statistically significant compared to the reference (p<<0.05)
+The reference group is the youngest group (23-39). The Cox regression shows that the 2 other age groups are statistically significant compared to the reference (p<<0.05).
+The impact of the age decrease the risk h of finishing the race by 0.8 and 0.6 (respectively for 40-49 and 50+) meaning that the youngest group has, respectively, 1.25 times and 1.66 times more chance to finish the race.
 
----------------
-## c/ Group by GENDER </br>
-### Kaplan-Meier </br>
+
+## c/ Group by GENDER
+### Kaplan-Meier
 ```{r}
 fit.KMgender <- survfit(Surv(timetoevent, status) ~ gender, data = data_utmb17)
 fit.KMgender
@@ -195,35 +193,30 @@ legend("bottomleft", lty = 1, col = c("#FF3399", "#0066FF"), cex= 0.75, legend =
 
 
 ```
-### Log rank test by gender </br>
+### Log rank test by gender
 ```{r}
 diff.KMgender <- survdiff(Surv(timetoevent, status) ~ gender, data = data_utmb17)
 diff.KMgender
 
 ```
-The p-value is large (p=0.1): the difference *is not* statistically significant.  </br>
+The p-value is large (p=0.1): the difference *is not* statistically significant.
 
-```{r}
-
-```
-
-
-As we can see on the KM curve, both curves are crossing twice. We can suspect an influence of the age Let's now stratify on the age to see of we can observe a difference between gender
+As we can see on the KM curve, both curves are crossing twice. We can suspect an influence of the age. Let's now stratify on the age to see of we can observe a difference between gender
 
 ```{r}
 diff.KMgender2 <- survdiff(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
 diff.KMgender2
 ```
 
---------------------------------------------------------------------------------
-### Semi-parametric Cox regression </br>
+
+### Semi-parametric Cox regression
 ```{r}
-cox.gender<- coxph(Surv(timetoevent, status) ~ gender, data = data_utmb17)
+cox.gender<- coxph(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
 summary(cox.gender)
 ```
 
-## d/ Group by Age AND Gender </br>
-### Kaplan-Meier</br>
+## d/ Group by Age AND Gender
+### Kaplan-Meier
 ```{r}
 fit.KMage_gender <- survfit(Surv(timetoevent, status) ~ age_range + gender, data = data_utmb17)
 fit.KMage_gender
@@ -232,16 +225,17 @@ plot(fit.KMage_gender, col = 1:9)
 legend("bottomleft",lty = 1, col = 1:9, legend = names(fit.KMage_gender$strata), cex= 0.6, box.lty=1)
 ```
 
-### Log rank test </br>
+### Log rank test
 ```{r}
-diff.KMage_gender1 <- survdiff(Surv(timetoevent, status) ~ gender + age_range, data = data_utmb17)
+diff.KMage_gender1 <- survdiff(Surv(timetoevent, status) ~ gender + age_range , data = data_utmb17)
 diff.KMage_gender1
 ```
 
-### Semi-parametric Cox regression </br>
+### Semi-parametric Cox regression
+with interaction btw age and sex age:gender
 ```{r}
 
-cox.age_gender<- coxph(Surv(timetoevent, status) ~ gender + age_range, data = data_utmb17)
+cox.age_gender<- coxph(Surv(timetoevent, status) ~ gender + age_range + age_range:gender, data = data_utmb17)
 summary(cox.age_gender)
 ```
 
