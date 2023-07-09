@@ -150,6 +150,12 @@ plot(fit.KM, mark.time = TRUE,
      xlab = "time (seconds)")
 
 ```
+### Semi-parametric Cox regression
+```{r}
+cox.full<- coxph(Surv(timetoevent, status) ~ 1, data = data_utmb17)
+summary(cox.full)
+```
+
 
 ## b/ Group by AGE
 ### Kaplan-Meier
@@ -207,13 +213,16 @@ As we can see on the KM curve, both curves are crossing twice. We can suspect an
 diff.KMgender2 <- survdiff(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
 diff.KMgender2
 ```
-
+The p-value decrease a bit (p=0.07 vs 0.1) that let us think about age influence but the difference is still not statistically significant between male and female.
+We can note that the number of female is lower than male. We could increase the size of female sample to have a more balanced dataset to improve the analysis.
 
 ### Semi-parametric Cox regression
 ```{r}
 cox.gender<- coxph(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
 summary(cox.gender)
 ```
+The reference group is the female group. The Cox regression shows that the male group is not statistically significant compared to the reference confirming the log rank test analysis.
+The impact of the gender increase the "risk" of finishing the race by 1.17 meaning that the female have 0.85 times more chance to finish the race than male.
 
 ## d/ Group by Age AND Gender
 ### Kaplan-Meier
@@ -232,10 +241,28 @@ diff.KMage_gender1
 ```
 
 ### Semi-parametric Cox regression
-with interaction btw age and sex age:gender
+without interaction btw age and sex 
 ```{r}
-
-cox.age_gender<- coxph(Surv(timetoevent, status) ~ gender + age_range + age_range:gender, data = data_utmb17)
-summary(cox.age_gender)
+cox.age_gender1<- coxph(Surv(timetoevent, status) ~ gender + age_range, data = data_utmb17)
+summary(cox.age_gender1)
 ```
 
+with interaction btw age and sex (age:gender)
+```{r}
+
+cox.age_gender2<- coxph(Surv(timetoevent, status) ~ gender + age_range + age_range:gender, data = data_utmb17)
+summary(cox.age_gender2)
+```
+The interaction age:gender is not statistically significant meaning that we can remove it from the model.
+In fact, we observe same results as before meaning that only the covariate age have a significant impact of the survival.
+
+
+## e/ Comparison of the Cox models
+
+Let's compare the different Cox models and see which is the "best" one using AIC: cox.full, cox.age, cox.gender, cox.age_gender1 (no interaction) and cox.age_gender2 (with interaction)
+
+```{r}
+fits<- list(M0 = cox.full, MA = cox.age, MB = cox.gender, MC1 = cox.age_gender1, MC2=cox.age_gender2)
+sapply(fits, AIC)
+```
+We can see that the best model (with lowest AIC) is the model considering the covariate "gender".
