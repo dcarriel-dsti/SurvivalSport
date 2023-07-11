@@ -23,7 +23,7 @@ library(lubridate)
 # 2/DATA PREPARATION
 First, we need to specify the path where the dataset is located. You need to amend in with your own path
 ```{r}
-setwd ('C:/Users/romai/Documents/DSTI/21-Survival Analysis/UTMB')
+setwd('C:/Users/Diego.CARRIELLOPEZ/OneDrive - EDELRIS/Bureau/DSTI/DSTI Repos/SurvivalSport/Dataset')
 data_utmb17 <- read_csv("utmb_2017.csv", col_names = TRUE)
 head(data_utmb17)
 ```
@@ -255,6 +255,12 @@ summary(cox.age_gender2)
 ```
 The interaction age:gender is not statistically significant meaning that we can remove it from the model.
 In fact, we observe same results as before meaning that only the covariate age have a significant impact of the survival.
+```{r}
+
+cox.age_gender3<- coxph(Surv(timetoevent, status) ~ age_range + strata(gender) , data = data_utmb17)
+summary(cox.age_gender3)
+
+```
 
 
 ## e/ Comparison of the Cox models
@@ -262,7 +268,32 @@ In fact, we observe same results as before meaning that only the covariate age h
 Let's compare the different Cox models and see which is the "best" one using AIC: cox.full, cox.age, cox.gender, cox.age_gender1 (no interaction) and cox.age_gender2 (with interaction)
 
 ```{r}
-fits<- list(M0 = cox.full, MA = cox.age, MB = cox.gender, MC1 = cox.age_gender1, MC2=cox.age_gender2)
+fits<- list(M0 = cox.full, MA = cox.age, MB = cox.gender, MC1 = cox.age_gender1, MC2=cox.age_gender2, MC3 = cox.age_gender3)
 sapply(fits, AIC)
 ```
 We can see that the best model (with lowest AIC) is the model considering the covariate "gender".
+
+
+```{r}
+
+# Proportionality of hazards : complementary log-log plot
+# In this figure we see that the different age_ranges are not parellel which indicates that the proportionality of hazards is not respected
+plot(survfit(Surv(timetoevent, status) ~ age_range , data = data_utmb17),
+     fun = "cloglog",
+     col = 1:2)
+```
+
+
+```{r}
+
+fit <- coxph(Surv(timetoevent, status) ~ age_range, data = data_utmb17)
+data_utmb17$residual <- residuals(fit, type = "martingale")
+```
+
+```{r}
+# Schoenfeld residuals plot
+# The output of the test is p < 0.05 which is statistically significant. Therefore, the proportional hazards assumption is not respected and is in accordance with the complementary log-log plot
+test.ph <- cox.zph(fit)
+test.ph
+plot(test.ph)
+```
