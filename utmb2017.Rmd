@@ -276,11 +276,13 @@ plot(survfit(Surv(timetoevent, status) ~ age_range , data = data_utmb17),
      col = 1:2)
 ```
 In this figure we see that the different age_ranges are not parallel which indicates that the proportionality of hazards is not respected.
-
 ```{r}
-#fit <- coxph(Surv(timetoevent, status) ~ age_range, data = data_utmb17)
-data_utmb17$residual <- residuals(cox.age, type = "martingale")
+plot(survfit(Surv(timetoevent, status) ~ gender , data = data_utmb17),
+     fun = "cloglog",
+     col = 1:2)
 ```
+In this figure we see that the different gender are not parallel which indicates that the proportionality of hazards is not respected.
+
 
 ### Schoenfeld residuals plot
 Let's consider the model with the covariate "age_range" for which we observed a significant difference between the youngest group and the 2 others.
