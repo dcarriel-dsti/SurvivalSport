@@ -23,7 +23,7 @@ library(lubridate)
 # 2/DATA PREPARATION
 First, we need to specify the path where the dataset is located. You need to amend it with your own path
 ```{r}
-setwd('C:/Users/romai/Documents/DSTI/21-Survival Analysis/UTMB')
+setwd('C:/Users/diego/OneDrive/Bureau/Master Data ScienceTech Institute/Repository/Survival/SurvivalSport/Dataset')
 data_utmb17 <- read_csv("utmb_2017.csv", col_names = TRUE)
 head(data_utmb17)
 ```
@@ -107,6 +107,8 @@ data_utmb17<-  data_utmb17[,-c(2,3,4,8,9,10)]
 
 Then, we convert the age category (SE, V1, V2, V3, V4) in age range (in years) using the international age ranking for running trail
 ```{r}
+colnames(data_utmb17)
+
 age_range <- tibble('age' =
                       c("V1", "V2","V3", "V4", "SE"),
                     'age_range' = c("40-49", "50-59", "60-69", "70+", "23-39")
@@ -212,11 +214,11 @@ We can note that the number of female is lower than male. We could increase the 
 
 ### Semi-parametric Cox regression
 ```{r}
-cox.gender<- coxph(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
+cox.gender<- coxph(Surv(timetoevent, status) ~ gender , data = data_utmb17)
 summary(cox.gender)
 ```
 The reference group is the female group. The Cox regression shows that the male group is not statistically significant compared to the reference confirming the log rank test analysis.
-The impact of the gender increase the "risk" of finishing the race by 1.17 meaning that the female have 0.85 times more chance to finish the race than male.
+The impact of the gender increase the "risk" of finishing the race by 1.153 meaning that the female have 0.867 times more chance to finish the race than male.
 
 ## d/ Group by Age AND Gender
 ### Kaplan-Meier
@@ -256,13 +258,17 @@ summary(cox.age_gender3)
 
 ```
 
+```{r}
+cox.gender4<- coxph(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
+summary(cox.gender)
+```
 
 ## e/ Comparison & validation of the Cox models
 ### AIC 
 Let's compare the different Cox models and see which is the "best" one using AIC: cox.full, cox.age, cox.gender, cox.age_gender1 (no interaction) and cox.age_gender2 (with interaction)
 
 ```{r}
-fits<- list(MA = cox.age, MB = cox.gender, MC1 = cox.age_gender1, MC2=cox.age_gender2, MC3 = cox.age_gender3)
+fits<- list(MA = cox.age, MB = cox.gender, MC1 = cox.age_gender1, MC2=cox.age_gender2, MC3 = cox.age_gender3, MC4=cox.age)
 sapply(fits, AIC)
 ```
 We can see that the best model (with lowest AIC) is the model considering the covariate "gender"(note: we did not observe a significant of gender on survival time!)
@@ -283,7 +289,11 @@ plot(survfit(Surv(timetoevent, status) ~ gender , data = data_utmb17),
 ```
 In this figure we see that the different gender are not parallel which indicates that the proportionality of hazards is not respected.
 
-
+```{r}
+plot(survfit(Surv(timetoevent, status) ~ gender + strata(age_range) , data = data_utmb17),
+     fun = "cloglog",
+     col = 1:2)
+```
 ### Schoenfeld residuals plot
 Let's consider the model with the covariate "age_range" for which we observed a significant difference between the youngest group and the 2 others.
 ```{r}
@@ -292,3 +302,9 @@ test.ph
 plot(test.ph)
 ```
 The output of the test is p < 0.05 which is statistically significant. Therefore, the proportional hazards assumption is not respected and is in accordance with the complementary log-log plot
+```{r}
+test.ph <- cox.zph(cox.gender)
+test.ph
+plot(test.ph)
+```
+The output of the test is p > 0.05 which is statistically non- significant. Therefore, the proportional hazards assumption is respected and is in accordance with the complementary log-log plot concerning the gender covariate
