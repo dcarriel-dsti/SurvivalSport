@@ -23,7 +23,7 @@ library(lubridate)
 # 2/DATA PREPARATION
 First, we need to specify the path where the dataset is located. You need to amend it with your own path
 ```{r}
-setwd('C:/Users/diego/OneDrive/Bureau/Master Data ScienceTech Institute/Repository/Survival/SurvivalSport/Dataset')
+setwd('C:/Users/romai/Documents/DSTI/21-Survival Analysis/UTMB')
 data_utmb17 <- read_csv("utmb_2017.csv", col_names = TRUE)
 head(data_utmb17)
 ```
@@ -214,7 +214,7 @@ We can note that the number of female is lower than male. We could increase the 
 
 ### Semi-parametric Cox regression
 ```{r}
-cox.gender<- coxph(Surv(timetoevent, status) ~ gender , data = data_utmb17)
+cox.gender<- coxph(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
 summary(cox.gender)
 ```
 The reference group is the female group. The Cox regression shows that the male group is not statistically significant compared to the reference confirming the log rank test analysis.
@@ -251,24 +251,14 @@ summary(cox.age_gender2)
 ```
 The interaction age:gender is not statistically significant meaning that we can remove it from the model.
 In fact, we observe same results as before meaning that only the covariate age have a significant impact of the survival.
-```{r}
 
-cox.age_gender3<- coxph(Surv(timetoevent, status) ~ age_range + strata(gender) , data = data_utmb17)
-summary(cox.age_gender3)
-
-```
-
-```{r}
-cox.gender4<- coxph(Surv(timetoevent, status) ~ gender + strata(age_range), data = data_utmb17)
-summary(cox.gender)
-```
 
 ## e/ Comparison & validation of the Cox models
 ### AIC 
-Let's compare the different Cox models and see which is the "best" one using AIC: cox.full, cox.age, cox.gender, cox.age_gender1 (no interaction) and cox.age_gender2 (with interaction)
+Let's compare the different Cox models and see which is the "best" one using AIC:cox.age, cox.gender (with stratification on age), cox.age_gender1 (no interaction) and cox.age_gender2 (with interaction)
 
 ```{r}
-fits<- list(MA = cox.age, MB = cox.gender, MC1 = cox.age_gender1, MC2=cox.age_gender2, MC3 = cox.age_gender3, MC4=cox.age)
+fits<- list(MA = cox.age, MB = cox.gender, MC1 = cox.age_gender1, MC2=cox.age_gender2)
 sapply(fits, AIC)
 ```
 We can see that the best model (with lowest AIC) is the model considering the covariate "gender"(note: we did not observe a significant of gender on survival time!)
